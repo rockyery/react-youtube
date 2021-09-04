@@ -1,18 +1,18 @@
-import express from "express";
-import {PrismaClient} from '@prisma/client'
+import express from "express"
+import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
 function getVideoRoutes() {
-  const router = express.Router();
+  const router = express.Router()
 
   router.get('/', getRecommendedVideos)
-
-  return router;
+  router.get('/trending', getTrendingVideos)
+  return router
 }
 
 async function getVideoViews(videos) {
-  for(const video of videos) {
+  for (const video of videos) {
     const views = await prisma.view.count({
       where: {
         videoId: {
@@ -35,7 +35,7 @@ async function getRecommendedVideos(req, res) {
     }
   })
 
-  if(!videos.length) {
+  if (!videos.length) {
     return res.status(200).json({ videos })
   }
 
@@ -44,24 +44,42 @@ async function getRecommendedVideos(req, res) {
   res.status(200).json({ videos })
 }
 
-async function getTrendingVideos(req, res) {}
+async function getTrendingVideos(req, res) {
+  let videos = await prisma.video.findMany({
+    include: {
+      user: true
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  })
 
-async function searchVideos(req, res, next) {}
+  if (!videos.length) {
+    return res.status(200).json({ videos })
+  }
 
-async function addVideo(req, res) {}
+  videos = await getVideoViews(videos)
+  videos.sort((a, b) => b.views - a.views)
 
-async function addComment(req, res, next) {}
+  res.status(200).json({ videos })
+}
 
-async function deleteComment(req, res) {}
+async function searchVideos(req, res, next) { }
 
-async function addVideoView(req, res, next) {}
+async function addVideo(req, res) { }
 
-async function likeVideo(req, res, next) {}
+async function addComment(req, res, next) { }
 
-async function dislikeVideo(req, res, next) {}
+async function deleteComment(req, res) { }
 
-async function getVideo(req, res, next) {}
+async function addVideoView(req, res, next) { }
 
-async function deleteVideo(req, res) {}
+async function likeVideo(req, res, next) { }
 
-export { getVideoRoutes };
+async function dislikeVideo(req, res, next) { }
+
+async function getVideo(req, res, next) { }
+
+async function deleteVideo(req, res) { }
+
+export { getVideoRoutes }
