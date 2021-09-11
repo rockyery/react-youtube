@@ -1,6 +1,6 @@
 import express from "express"
 import { PrismaClient } from '@prisma/client'
-import { protect } from '../middleware/authorization'
+import { protect, getAuthUser } from '../middleware/authorization'
 
 const prisma = new PrismaClient()
 
@@ -12,6 +12,10 @@ function getVideoRoutes() {
   router.get('/search', searchVideos)
 
   router.post('/', protect, addVideo)
+  router.get('/:videoId/view', getAuthUser, addVideoView)
+  router.post('/:videoId/comment', protect, addComment)
+  router.delete('/:videoId/comment/:commentId', protect, deleteComment)
+
   return router
 }
 
@@ -105,7 +109,6 @@ async function searchVideos(req, res, next) {
   videos = await getVideoViews(videos)
 
   res.status(200).json({ videos })
-
 }
 
 async function addVideo(req, res) { 
@@ -126,11 +129,107 @@ async function addVideo(req, res) {
   res.status(200).json({ video });
 }
 
-async function addComment(req, res, next) { }
+async function addComment(req, res, next) {
+  const video = await prisma.video.findUnique({
+    where: {
+      id: req.params.videoId
+    }
+  })
 
-async function deleteComment(req, res) { }
+  if(!video) {
+    return next({
+      message: `No video found with id: "${req.params.videoId}"`,
+      statusCode:404
+    })
+  }
 
-async function addVideoView(req, res, next) { }
+  const comment = await prisma.comment.create({
+    data: {
+      text: req.body.text,
+      user: {
+        connect: {
+          id: req.user.id
+        }
+      },
+      video: {
+        connect: {
+          id:req.params.videoId
+        }
+      }
+    }
+  });
+
+  res.status(200).json({ comment })
+
+ }
+
+async function deleteComment(req, res) { 
+
+  const comment = await prisma.comment.findUnique({
+    where: {
+      id: req.params.commentId
+    },
+    select: {
+      userId: true
+    }
+  })
+
+  if(comment.userId !== req.user.id) {
+    return res.status(401).send("You are not authorized to delete this comment.")
+  }
+
+  await prisma.comment.delete({
+    where: {
+      id: req.params.commentId
+    }
+  })
+
+  res.status(200).json({})
+}
+
+async function addVideoView(req, res, next) { 
+  const video = await prisma.video.findUnique({
+    where: {
+      id: req.params.videoId
+    }
+  })
+
+  if(!video) {
+    return next({
+      message: `No video found with id: ${req.params.videoId} `,
+      statusCode: 404
+    })
+  }
+
+  if(req.user) {
+    await prisma.view.create({
+      data: {
+        video: {
+          connect: {
+            id: req.params.videoId
+          }
+        },
+        user: {
+          connect: {
+            id: req.user.id
+          }
+        }
+      }
+    })
+  } else {
+    await prisma.view.create({
+      data: {
+        video: {
+          connect: {
+            id: req.params.videoId
+          }
+        }
+      }
+    })
+  }
+
+  res.status(200).json({})
+}
 
 async function likeVideo(req, res, next) { }
 
